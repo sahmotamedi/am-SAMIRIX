@@ -59,8 +59,8 @@ end
 volumeFoveaYmm = (sloFoveaXmm-bScanHeader.EndX(end))*cos(sloVolumeAngle) + (sloFoveaYmm-bScanHeader.EndY(end))*sin(sloVolumeAngle);     % The position of the fovea in the y direction in mm in the volume Grid (Note: the y direction in the volume is different from the y direction in the slo image)
 volumeFoveaXmm = -(sloFoveaXmm-bScanHeader.EndX(end))*sin(sloVolumeAngle) + (sloFoveaYmm-bScanHeader.EndY(end))*cos(sloVolumeAngle);    % The position of the fovea in the x direction in mm in the volume Grid (Note: the x direction in the volume is different from the x direction in the slo image)
 
-foveaBScan = header.NumBScans - (round(volumeFoveaYmm/header.Distance));    % The number of the B-Scan which the fovea in located on it 
-foveaAScan = header.SizeX - (round(volumeFoveaXmm/header.ScaleX));          % The number of the A-Scan which the fovea in located on it 
+foveaBScan = header.NumBScans - (round(8*volumeFoveaYmm/header.Distance)/8);    % The number of the B-Scan which the fovea in located on it     %@note it is assumed that the center BScan is an interger plus 0, 1/2, 1/4 or 1/8. Zhis is set according to the centering process of cropping, and I cannot think of a case which it is an interger plus 1/16 or smaller
+foveaAScan = header.SizeX - (round(2*volumeFoveaXmm/header.ScaleX)/2);          % The number of the A-Scan which the fovea in located on it     %@note it is assumed that the center AScan is either an interger number or and interger plus 1/2
 
 % Check what type of grid is to be used 
 if (isempty(varargin) || ~isempty(strfind(lower(varargin{1}), 'circ'))) % if the user did not pass any argument to determine the type of the grid or passed an argument included the key word 'circ', a circular grid is assusmed as the grid. 
@@ -68,8 +68,8 @@ if (isempty(varargin) || ~isempty(strfind(lower(varargin{1}), 'circ'))) % if the
     % Determine the radius of the grid circles 
     if (length(varargin) < 2) % if the user did not pass an argument to determine the outer diameter, the diametrers mentioned in thicknessGrid are considered as the grid diameters 
         centerRadius = thicknessGrid.Diameter(1)/2;
-        innerRadius = thicknessGrid.Diameter(2)/2;
-        outerRadius = thicknessGrid.Diameter(3)/2;
+        innerRadius  = thicknessGrid.Diameter(2)/2;
+        outerRadius  = thicknessGrid.Diameter(3)/2;
     else % in the case that the diameter parameter was given, the center, inner, and outer diameters are assigned accordingly 
         if ~isempty(find(varargin{2} == 6, 1)) || strcmpi(varargin{2}, 'ETDRS')
             centerRadius = 0.5; 
@@ -91,22 +91,22 @@ if (isempty(varargin) || ~isempty(strfind(lower(varargin{1}), 'circ'))) % if the
     % pixels belong to the corresponding sector in different directions are
     % used for the matrix size definition. In symmetric cases the matrix
     % was duplicated)
-    centerSectorBScans = NaN(header.SizeZ, 2*floor(centerRadius/header.ScaleX)+1, 2*floor(centerRadius/header.Distance)+1);
-    innerNasalSectorBScans = NaN(header.SizeZ, 2*floor(innerRadius/sqrt(2)/header.ScaleX)+1, floor(innerRadius/header.Distance)-ceil(centerRadius/sqrt(2)/header.Distance)+1);
-    outerNasalSectorBScans = NaN(header.SizeZ, 2*floor(outerRadius/sqrt(2)/header.ScaleX)+1, floor(outerRadius/header.Distance)-ceil(innerRadius/sqrt(2)/header.Distance)+1);
+    centerSectorBScans = NaN(header.SizeZ, floor(2*centerRadius/header.ScaleX)+1, floor(2*centerRadius/header.Distance)+1);
+    innerNasalSectorBScans = NaN(header.SizeZ, floor(2*innerRadius/sqrt(2)/header.ScaleX)+1, floor(innerRadius/header.Distance-centerRadius/sqrt(2)/header.Distance)+1);
+    outerNasalSectorBScans = NaN(header.SizeZ, floor(2*outerRadius/sqrt(2)/header.ScaleX)+1, floor(outerRadius/header.Distance-innerRadius/sqrt(2)/header.Distance)+1);
     innerTemporalSectorBScans = innerNasalSectorBScans;
     outerTemporalSectorBScans = outerNasalSectorBScans;
-    innerSuperiorSectorBScans = NaN(header.SizeZ, floor(innerRadius/header.ScaleX)-ceil(centerRadius/sqrt(2)/header.ScaleX)+1, 2*floor(innerRadius/sqrt(2)/header.Distance)+1);
-    outerSuperiorSectorBScans = NaN(header.SizeZ, floor(outerRadius/header.ScaleX)-ceil(innerRadius/sqrt(2)/header.ScaleX)+1, 2*floor(outerRadius/sqrt(2)/header.Distance)+1);
+    innerSuperiorSectorBScans = NaN(header.SizeZ, floor(innerRadius/header.ScaleX-centerRadius/sqrt(2)/header.ScaleX)+1, floor(2*innerRadius/sqrt(2)/header.Distance)+1);
+    outerSuperiorSectorBScans = NaN(header.SizeZ, floor(outerRadius/header.ScaleX-innerRadius/sqrt(2)/header.ScaleX)+1, floor(2*outerRadius/sqrt(2)/header.Distance)+1);
     innerInferiorSectorBScans = innerSuperiorSectorBScans;
     outerInferiorSectorBScans = outerSuperiorSectorBScans;
-    centerSectorSegmentation = NaN(size(segmentationData, 1), 2*floor(centerRadius/header.ScaleX)+1, 2*floor(centerRadius/header.Distance)+1);
-    innerNasalSectorSegmentation = NaN(size(segmentationData, 1), 2*floor(innerRadius/sqrt(2)/header.ScaleX)+1, floor(innerRadius/header.Distance)-ceil(centerRadius/sqrt(2)/header.Distance)+1);
-    outerNasalSectorSegmentation = NaN(size(segmentationData, 1), 2*floor(outerRadius/sqrt(2)/header.ScaleX)+1, floor(outerRadius/header.Distance)-ceil(innerRadius/sqrt(2)/header.Distance)+1);
+    centerSectorSegmentation = NaN(size(segmentationData, 1), floor(2*centerRadius/header.ScaleX)+1, floor(2*centerRadius/header.Distance)+1);
+    innerNasalSectorSegmentation = NaN(size(segmentationData, 1), floor(2*innerRadius/sqrt(2)/header.ScaleX)+1, floor(innerRadius/header.Distance-centerRadius/sqrt(2)/header.Distance)+1);
+    outerNasalSectorSegmentation = NaN(size(segmentationData, 1), floor(2*outerRadius/sqrt(2)/header.ScaleX)+1, floor(outerRadius/header.Distance-innerRadius/sqrt(2)/header.Distance)+1);
     innerTemporalSectorSegmentation = innerNasalSectorSegmentation;
     outerTemporalSectorSegmentation = outerNasalSectorSegmentation;
-    innerSuperiorSectorSegmentation = NaN(size(segmentationData, 1), floor(innerRadius/header.ScaleX)-ceil(centerRadius/sqrt(2)/header.ScaleX)+1, 2*floor(innerRadius/sqrt(2)/header.Distance)+1);
-    outerSuperiorSectorSegmentation = NaN(size(segmentationData, 1), floor(outerRadius/header.ScaleX)-ceil(innerRadius/sqrt(2)/header.ScaleX)+1, 2*floor(outerRadius/sqrt(2)/header.Distance)+1);
+    innerSuperiorSectorSegmentation = NaN(size(segmentationData, 1), floor(innerRadius/header.ScaleX-centerRadius/sqrt(2)/header.ScaleX)+1, floor(2*innerRadius/sqrt(2)/header.Distance)+1);
+    outerSuperiorSectorSegmentation = NaN(size(segmentationData, 1), floor(outerRadius/header.ScaleX-innerRadius/sqrt(2)/header.ScaleX)+1, floor(2*outerRadius/sqrt(2)/header.Distance)+1);
     innerInferiorSectorSegmentation = innerSuperiorSectorSegmentation;
     outerInferiorSectorSegmentation = outerSuperiorSectorSegmentation;
     
@@ -128,117 +128,228 @@ if (isempty(varargin) || ~isempty(strfind(lower(varargin{1}), 'circ'))) % if the
             % volumetric and segmentation data is inserted into the
             % matrices)
             if (thisAScanRho <= centerRadius) % Centeral Circle
-                centerSectorBScans(:, iAScan-foveaAScan+floor(centerRadius/header.ScaleX)+1, iBScan-foveaBScan+floor(centerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                centerSectorSegmentation(:, iAScan-foveaAScan+floor(centerRadius/header.ScaleX)+1, iBScan-foveaBScan+floor(centerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                centerSectorBScans(:, floor(iAScan-foveaAScan+centerRadius/header.ScaleX)+1, floor(iBScan-foveaBScan+centerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                centerSectorSegmentation(:, floor(iAScan-foveaAScan+centerRadius/header.ScaleX)+1, floor(iBScan-foveaBScan+centerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
             elseif (centerRadius < thisAScanRho && thisAScanRho <= innerRadius) % Inner ring
                 if (-pi/4 < thisAScanTheta && thisAScanTheta <= pi/4)
                     if (~isempty(strfind(header.ScanPosition, 'OD'))) % OD - Inner Temporal
-                        innerTemporalSectorBScans(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(centerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        innerTemporalSectorSegmentation(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(centerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        innerTemporalSectorBScans(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-centerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        innerTemporalSectorSegmentation(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-centerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     else % OS - Inner Nasal
-                        innerNasalSectorBScans(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(centerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        innerNasalSectorSegmentation(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(centerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        innerNasalSectorBScans(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-centerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        innerNasalSectorSegmentation(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-centerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     end
                 elseif (pi/4 < thisAScanTheta && thisAScanTheta <= 3*pi/4) % Inner Superior
-                    innerSuperiorSectorBScans(:, iAScan-foveaAScan-ceil(centerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                    innerSuperiorSectorSegmentation(:, iAScan-foveaAScan-ceil(centerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                    innerSuperiorSectorBScans(:, floor(iAScan-foveaAScan-centerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                    innerSuperiorSectorSegmentation(:, floor(iAScan-foveaAScan-centerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                 elseif ((3*pi/4 < thisAScanTheta && thisAScanTheta <= pi) || (-pi <= thisAScanTheta && thisAScanTheta <= -3*pi/4))
                     if (~isempty(strfind(header.ScanPosition, 'OD'))) % OD - Inner Nasal
-                        innerNasalSectorBScans(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        innerNasalSectorSegmentation(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        innerNasalSectorBScans(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        innerNasalSectorSegmentation(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     else % OS - Inner Temporal
-                        innerTemporalSectorBScans(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        innerTemporalSectorSegmentation(:, iAScan-foveaAScan+floor(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        innerTemporalSectorBScans(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        innerTemporalSectorSegmentation(:, floor(iAScan-foveaAScan+innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     end
                 elseif (-3*pi/4 < thisAScanTheta && thisAScanTheta <= -pi/4) % Inner Inferior
-                    innerInferiorSectorBScans(:, iAScan-foveaAScan+floor(innerRadius/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                    innerInferiorSectorSegmentation(:, iAScan-foveaAScan+floor(innerRadius/header.ScaleX)+1, iBScan-foveaBScan+floor(innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                    innerInferiorSectorBScans(:, floor(iAScan-foveaAScan+innerRadius/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                    innerInferiorSectorSegmentation(:, floor(iAScan-foveaAScan+innerRadius/header.ScaleX)+1, floor(iBScan-foveaBScan+innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                 end
             elseif (innerRadius < thisAScanRho && thisAScanRho <= outerRadius) % Outer ring
                 if (-pi/4 < thisAScanTheta && thisAScanTheta <= pi/4)
                     if (~isempty(strfind(header.ScanPosition, 'OD'))) % OD - Outer Temporal
-                        outerTemporalSectorBScans(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        outerTemporalSectorSegmentation(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        outerTemporalSectorBScans(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        outerTemporalSectorSegmentation(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     else % OS - Outer Nasal
-                        outerNasalSectorBScans(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        outerNasalSectorSegmentation(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan-ceil(innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        outerNasalSectorBScans(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-innerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        outerNasalSectorSegmentation(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan-innerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     end
                 elseif (pi/4 < thisAScanTheta && thisAScanTheta <= 3*pi/4) % Outer Superior
-                    outerSuperiorSectorBScans(:, iAScan-foveaAScan-ceil(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                    outerSuperiorSectorSegmentation(:, iAScan-foveaAScan-ceil(innerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                    outerSuperiorSectorBScans(:, floor(iAScan-foveaAScan-innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                    outerSuperiorSectorSegmentation(:, floor(iAScan-foveaAScan-innerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                 elseif ((3*pi/4 < thisAScanTheta && thisAScanTheta <= pi) || (-pi <= thisAScanTheta && thisAScanTheta <= -3*pi/4))
                     if (~isempty(strfind(header.ScanPosition, 'OD')))   % OD - Outer Nasal
-                        outerNasalSectorBScans(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        outerNasalSectorSegmentation(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        outerNasalSectorBScans(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        outerNasalSectorSegmentation(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     else % OS - Outer Temporal
-                        outerTemporalSectorBScans(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                        outerTemporalSectorSegmentation(:, iAScan-foveaAScan+floor(outerRadius/sqrt(2)/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                        outerTemporalSectorBScans(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                        outerTemporalSectorSegmentation(:, floor(iAScan-foveaAScan+outerRadius/sqrt(2)/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                     end
                 elseif (-3*pi/4 < thisAScanTheta && thisAScanTheta <= -pi/4) % Outer Inferior
-                    outerInferiorSectorBScans(:, iAScan-foveaAScan+floor(outerRadius/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
-                    outerInferiorSectorSegmentation(:, iAScan-foveaAScan+floor(outerRadius/header.ScaleX)+1, iBScan-foveaBScan+floor(outerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
+                    outerInferiorSectorBScans(:, floor(iAScan-foveaAScan+outerRadius/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/sqrt(2)/header.Distance)+1) = bScans(:, iAScan, iBScan);
+                    outerInferiorSectorSegmentation(:, floor(iAScan-foveaAScan+outerRadius/header.ScaleX)+1, floor(iBScan-foveaBScan+outerRadius/sqrt(2)/header.Distance)+1) = segmentationData(:, iAScan, iBScan);
                 end
             end
         end
     end
     
-    % Form the sectors structure
-    sectors.centerSector.bScans = centerSectorBScans;
-    sectors.innerNasalSector.bScans = innerNasalSectorBScans;
-    sectors.outerNasalSector.bScans = outerNasalSectorBScans;
-    sectors.innerTemporalSector.bScans = innerTemporalSectorBScans;
-    sectors.outerTemporalSector.bScans = outerTemporalSectorBScans;
-    sectors.innerSuperiorSector.bScans = innerSuperiorSectorBScans;
-    sectors.outerSuperiorSector.bScans = outerSuperiorSectorBScans;
-    sectors.innerInferiorSector.bScans = innerInferiorSectorBScans;
-    sectors.outerInferiorSector.bScans = outerInferiorSectorBScans;
-    sectors.centerSector.segmentation = centerSectorSegmentation;
-    sectors.innerNasalSector.segmentation = innerNasalSectorSegmentation;
-    sectors.outerNasalSector.segmentation = outerNasalSectorSegmentation;
-    sectors.innerTemporalSector.segmentation = innerTemporalSectorSegmentation;
-    sectors.outerTemporalSector.segmentation = outerTemporalSectorSegmentation;
-    sectors.innerSuperiorSector.segmentation = innerSuperiorSectorSegmentation;
-    sectors.outerSuperiorSector.segmentation = outerSuperiorSectorSegmentation;
-    sectors.innerInferiorSector.segmentation = innerInferiorSectorSegmentation;
-    sectors.outerInferiorSector.segmentation = outerInferiorSectorSegmentation;
-    
-elseif ~isempty(strfind(lower(varargin{1}), 'square')) % if the grid type argument included the key word 'square', a square grid is assusmed as the grid
-    %% Split the volume according to a square grid 
-    % Determine the size of the square and the grid
-    if length(varargin) == 1 % if the square and grid size parameters were not assigned
-        squareLengthAngle = 5;
-        gridLengthAngle = 20;
-    elseif length(varargin) == 2 % if only the square size parameter was assigned
-        squareLengthAngle = varargin{2};
-        gridLengthAngle = 20;
-    elseif length(varargin) == 3 % if both parameters were assigned 
-        squareLengthAngle = varargin{2};
-        gridLengthAngle = varargin{3};
-    end
-    
-    % Calculate the square length in the X direction (AScans) and the y
-    % direction (BScans), and also the number of squares in one direction
-    % (since the fovea is to be the center point of the grid, the square
-    % length (the number of BScans and AScans) and the number of squares in
-    % one direction have to be odd)
-    squareLengthX = 2*floor(header.SizeYSlo*header.ScaleYSlo/header.FieldSizeSlo*squareLengthAngle/header.ScaleX/2)+1;
-    squareLengthY = 2*floor(header.SizeXSlo*header.ScaleXSlo/header.FieldSizeSlo*squareLengthAngle/header.Distance/2)+1;
-    nSquares = 2*floor(gridLengthAngle/squareLengthAngle/2)+1;
-    
-    % Check if the length of the grid is greater than the size of the
-    % volume or not. If so, reduce the number of squares in one direction
-    % by 2 (has to be odd)
-    while nSquares*squareLengthX > header.SizeX || nSquares*squareLengthY > header.NumBScans
-        nSquares = nSquares - 2;
-    end
-    
-    % Split the volume 
-    centerSquareColumn = (nSquares + 1) / 2;
-    centerSquareRow = (nSquares + 1) / 2;
-    for iRow = 1:nSquares
-        for iColumn = 1:nSquares
-            sectors.(sprintf('squareSector%d%d', iRow, iColumn)).bScans = bScans(:, foveaAScan+ceil((iRow-centerSquareRow-0.5)*squareLengthX):foveaAScan+floor((iRow-centerSquareRow+0.5)*squareLengthX), foveaBScan+ceil((iColumn-centerSquareColumn-0.5)*squareLengthY):foveaBScan+floor((iColumn-centerSquareColumn+0.5)*squareLengthY));
-            sectors.(sprintf('squareSector%d%d', iRow, iColumn)).segmentation = segmentationData(:, foveaAScan+ceil((iRow-centerSquareRow-0.5)*squareLengthX):foveaAScan+floor((iRow-centerSquareRow+0.5)*squareLengthX), foveaBScan+ceil((iColumn-centerSquareColumn-0.5)*squareLengthY):foveaBScan+floor((iColumn-centerSquareColumn+0.5)*squareLengthY));
+    % Form the sectors structure    
+    % @note After testing this function, it turned out that these sector
+    % calculations are correct only for vertical scans which are from right
+    % to left, for other combinations like horizontal, and vertical from
+    % left to right (different sloVolAngle other than between -pi/4 and
+    % pi/4), the sector assigments are not correct, (e.g. innerNasal is
+    % indeed innerSuperior in horizontal which is from buttom to up), so
+    % this problem is corrected while the sectors structure is being formed
+    if -pi/4 < sloVolumeAngle && sloVolumeAngle <= pi/4     % Vertical Right to Left
+        sectors.centerSector.bScans = centerSectorBScans;
+        sectors.innerNasalSector.bScans = innerNasalSectorBScans;
+        sectors.outerNasalSector.bScans = outerNasalSectorBScans;
+        sectors.innerTemporalSector.bScans = innerTemporalSectorBScans;
+        sectors.outerTemporalSector.bScans = outerTemporalSectorBScans;
+        sectors.innerSuperiorSector.bScans = innerSuperiorSectorBScans;
+        sectors.outerSuperiorSector.bScans = outerSuperiorSectorBScans;
+        sectors.innerInferiorSector.bScans = innerInferiorSectorBScans;
+        sectors.outerInferiorSector.bScans = outerInferiorSectorBScans;
+        sectors.centerSector.segmentation = centerSectorSegmentation;
+        sectors.innerNasalSector.segmentation = innerNasalSectorSegmentation;
+        sectors.outerNasalSector.segmentation = outerNasalSectorSegmentation;
+        sectors.innerTemporalSector.segmentation = innerTemporalSectorSegmentation;
+        sectors.outerTemporalSector.segmentation = outerTemporalSectorSegmentation;
+        sectors.innerSuperiorSector.segmentation = innerSuperiorSectorSegmentation;
+        sectors.outerSuperiorSector.segmentation = outerSuperiorSectorSegmentation;
+        sectors.innerInferiorSector.segmentation = innerInferiorSectorSegmentation;
+        sectors.outerInferiorSector.segmentation = outerInferiorSectorSegmentation;
+    elseif pi/4 < sloVolumeAngle && sloVolumeAngle <= 3*pi/4    % Horizontal Button to Top
+        if (~isempty(strfind(header.ScanPosition, 'OD'))) % OD
+            sectors.centerSector.bScans = centerSectorBScans;
+            sectors.innerNasalSector.bScans = innerSuperiorSectorBScans;
+            sectors.outerNasalSector.bScans = outerSuperiorSectorBScans;
+            sectors.innerTemporalSector.bScans = innerInferiorSectorBScans;
+            sectors.outerTemporalSector.bScans = outerInferiorSectorBScans;
+            sectors.innerSuperiorSector.bScans = innerTemporalSectorBScans;
+            sectors.outerSuperiorSector.bScans = outerTemporalSectorBScans;
+            sectors.innerInferiorSector.bScans = innerNasalSectorBScans;
+            sectors.outerInferiorSector.bScans = outerNasalSectorBScans;
+            sectors.centerSector.segmentation = centerSectorSegmentation;
+            sectors.innerNasalSector.segmentation = innerSuperiorSectorSegmentation;
+            sectors.outerNasalSector.segmentation = outerSuperiorSectorSegmentation;
+            sectors.innerTemporalSector.segmentation = innerInferiorSectorSegmentation;
+            sectors.outerTemporalSector.segmentation = outerInferiorSectorSegmentation;
+            sectors.innerSuperiorSector.segmentation = innerTemporalSectorSegmentation;
+            sectors.outerSuperiorSector.segmentation = outerTemporalSectorSegmentation;
+            sectors.innerInferiorSector.segmentation = innerNasalSectorSegmentation;
+            sectors.outerInferiorSector.segmentation = outerNasalSectorSegmentation;
+        else  %OS
+            sectors.centerSector.bScans = centerSectorBScans;
+            sectors.innerNasalSector.bScans = innerInferiorSectorBScans;
+            sectors.outerNasalSector.bScans = outerInferiorSectorBScans;
+            sectors.innerTemporalSector.bScans = innerSuperiorSectorBScans;
+            sectors.outerTemporalSector.bScans = outerSuperiorSectorBScans;
+            sectors.innerSuperiorSector.bScans = innerNasalSectorBScans;
+            sectors.outerSuperiorSector.bScans = outerNasalSectorBScans;
+            sectors.innerInferiorSector.bScans = innerTemporalSectorBScans;
+            sectors.outerInferiorSector.bScans = outerTemporalSectorBScans;
+            sectors.centerSector.segmentation = centerSectorSegmentation;
+            sectors.innerNasalSector.segmentation = innerInferiorSectorSegmentation;
+            sectors.outerNasalSector.segmentation = outerInferiorSectorSegmentation;
+            sectors.innerTemporalSector.segmentation = innerSuperiorSectorSegmentation;
+            sectors.outerTemporalSector.segmentation = outerSuperiorSectorSegmentation;
+            sectors.innerSuperiorSector.segmentation = innerNasalSectorSegmentation;
+            sectors.outerSuperiorSector.segmentation = outerNasalSectorSegmentation;
+            sectors.innerInferiorSector.segmentation = innerTemporalSectorSegmentation;
+            sectors.outerInferiorSector.segmentation = outerTemporalSectorSegmentation;
+        end
+    elseif 3*pi/4 < sloVolumeAngle && sloVolumeAngle <= 5*pi/4  % Vertical Left to Right
+        sectors.centerSector.bScans = centerSectorBScans;
+        sectors.innerNasalSector.bScans = innerTemporalSectorBScans;
+        sectors.outerNasalSector.bScans = outerTemporalSectorBScans;
+        sectors.innerTemporalSector.bScans = innerNasalSectorBScans;
+        sectors.outerTemporalSector.bScans = outerNasalSectorBScans;
+        sectors.innerSuperiorSector.bScans = innerInferiorSectorBScans;
+        sectors.outerSuperiorSector.bScans = outerInferiorSectorBScans;
+        sectors.innerInferiorSector.bScans = innerSuperiorSectorBScans;
+        sectors.outerInferiorSector.bScans = outerSuperiorSectorBScans;
+        sectors.centerSector.segmentation = centerSectorSegmentation;
+        sectors.innerNasalSector.segmentation = innerTemporalSectorSegmentation;
+        sectors.outerNasalSector.segmentation = outerTemporalSectorSegmentation;
+        sectors.innerTemporalSector.segmentation = innerNasalSectorSegmentation;
+        sectors.outerTemporalSector.segmentation = outerNasalSectorSegmentation;
+        sectors.innerSuperiorSector.segmentation = innerInferiorSectorSegmentation;
+        sectors.outerSuperiorSector.segmentation = outerInferiorSectorSegmentation;
+        sectors.innerInferiorSector.segmentation = innerSuperiorSectorSegmentation;
+        sectors.outerInferiorSector.segmentation = outerSuperiorSectorSegmentation;
+    elseif (5*pi/4 < sloVolumeAngle && sloVolumeAngle <= 3*pi/2) || (-pi/2 < sloVolumeAngle && sloVolumeAngle <= -pi/4)
+        if (~isempty(strfind(header.ScanPosition, 'OD'))) % OD
+            sectors.centerSector.bScans = centerSectorBScans;
+            sectors.innerNasalSector.bScans = innerInferiorSectorBScans;
+            sectors.outerNasalSector.bScans = outerInferiorSectorBScans;
+            sectors.innerTemporalSector.bScans = innerSuperiorSectorBScans;
+            sectors.outerTemporalSector.bScans = outerSuperiorSectorBScans;
+            sectors.innerSuperiorSector.bScans = innerNasalSectorBScans;
+            sectors.outerSuperiorSector.bScans = outerNasalSectorBScans;
+            sectors.innerInferiorSector.bScans = innerTemporalSectorBScans;
+            sectors.outerInferiorSector.bScans = outerTemporalSectorBScans;
+            sectors.centerSector.segmentation = centerSectorSegmentation;
+            sectors.innerNasalSector.segmentation = innerInferiorSectorSegmentation;
+            sectors.outerNasalSector.segmentation = outerInferiorSectorSegmentation;
+            sectors.innerTemporalSector.segmentation = innerSuperiorSectorSegmentation;
+            sectors.outerTemporalSector.segmentation = outerSuperiorSectorSegmentation;
+            sectors.innerSuperiorSector.segmentation = innerNasalSectorSegmentation;
+            sectors.outerSuperiorSector.segmentation = outerNasalSectorSegmentation;
+            sectors.innerInferiorSector.segmentation = innerTemporalSectorSegmentation;
+            sectors.outerInferiorSector.segmentation = outerTemporalSectorSegmentation;
+        else    % OS
+            sectors.centerSector.bScans = centerSectorBScans;
+            sectors.innerNasalSector.bScans = innerSuperiorSectorBScans;
+            sectors.outerNasalSector.bScans = outerSuperiorSectorBScans;
+            sectors.innerTemporalSector.bScans = innerInferiorSectorBScans;
+            sectors.outerTemporalSector.bScans = outerInferiorSectorBScans;
+            sectors.innerSuperiorSector.bScans = innerTemporalSectorBScans;
+            sectors.outerSuperiorSector.bScans = outerTemporalSectorBScans;
+            sectors.innerInferiorSector.bScans = innerNasalSectorBScans;
+            sectors.outerInferiorSector.bScans = outerNasalSectorBScans;
+            sectors.centerSector.segmentation = centerSectorSegmentation;
+            sectors.innerNasalSector.segmentation = innerSuperiorSectorSegmentation;
+            sectors.outerNasalSector.segmentation = outerSuperiorSectorSegmentation;
+            sectors.innerTemporalSector.segmentation = innerInferiorSectorSegmentation;
+            sectors.outerTemporalSector.segmentation = outerInferiorSectorSegmentation;
+            sectors.innerSuperiorSector.segmentation = innerTemporalSectorSegmentation;
+            sectors.outerSuperiorSector.segmentation = outerTemporalSectorSegmentation;
+            sectors.innerInferiorSector.segmentation = innerNasalSectorSegmentation;
+            sectors.outerInferiorSector.segmentation = outerNasalSectorSegmentation;
         end
     end
+    
+elseif ~isempty(strfind(lower(varargin{1}), 'square')) % if the grid type argument included the key word 'square', a square grid is assusmed as the grid
+
+%%%%%%%%%%%%%% It has to be corrected for a non-integer center 
+    
+%     %% Split the volume according to a square grid
+%     % Determine the size of the square and the grid
+%     if length(varargin) == 1 % if the square and grid size parameters were not assigned
+%         squareLengthAngle = 5;
+%         gridLengthAngle = 20;
+%     elseif length(varargin) == 2 % if only the square size parameter was assigned
+%         squareLengthAngle = varargin{2};
+%         gridLengthAngle = 20;
+%     elseif length(varargin) == 3 % if both parameters were assigned 
+%         squareLengthAngle = varargin{2};
+%         gridLengthAngle = varargin{3};
+%     end
+%     
+%     % Calculate the square length in the X direction (AScans) and the y
+%     % direction (BScans), and also the number of squares in one direction
+%     % (since the fovea is to be the center point of the grid, the square
+%     % length (the number of BScans and AScans) and the number of squares in
+%     % one direction have to be odd)
+%     squareLengthX = 2*floor(header.SizeYSlo*header.ScaleYSlo/header.FieldSizeSlo*squareLengthAngle/header.ScaleX/2)+1;
+%     squareLengthY = 2*floor(header.SizeXSlo*header.ScaleXSlo/header.FieldSizeSlo*squareLengthAngle/header.Distance/2)+1;
+%     nSquares = 2*floor(gridLengthAngle/squareLengthAngle/2)+1;
+%     
+%     % Check if the length of the grid is greater than the size of the
+%     % volume or not. If so, reduce the number of squares in one direction
+%     % by 2 (has to be odd)
+%     while nSquares*squareLengthX > header.SizeX || nSquares*squareLengthY > header.NumBScans
+%         nSquares = nSquares - 2;
+%     end
+%     
+%     % Split the volume 
+%     centerSquareColumn = (nSquares + 1) / 2;
+%     centerSquareRow = (nSquares + 1) / 2;
+%     for iRow = 1:nSquares
+%         for iColumn = 1:nSquares
+%             sectors.(sprintf('squareSector%d%d', iRow, iColumn)).bScans = bScans(:, foveaAScan+ceil((iRow-centerSquareRow-0.5)*squareLengthX):foveaAScan+floor((iRow-centerSquareRow+0.5)*squareLengthX), foveaBScan+ceil((iColumn-centerSquareColumn-0.5)*squareLengthY):foveaBScan+floor((iColumn-centerSquareColumn+0.5)*squareLengthY));
+%             sectors.(sprintf('squareSector%d%d', iRow, iColumn)).segmentation = segmentationData(:, foveaAScan+ceil((iRow-centerSquareRow-0.5)*squareLengthX):foveaAScan+floor((iRow-centerSquareRow+0.5)*squareLengthX), foveaBScan+ceil((iColumn-centerSquareColumn-0.5)*squareLengthY):foveaBScan+floor((iColumn-centerSquareColumn+0.5)*squareLengthY));
+%         end
+%     end
 end

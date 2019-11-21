@@ -70,27 +70,36 @@ end
 
 function [mat] = readMat(fileID)
 	data     = fread(fileID, 8, 'uint32=>uint32');
-	type     = data(1);
+	depth    = data(1);
 	channels = data(2);
 	rows     = data(3);
 	cols     = data(4);
 	% data(5) - data(8) unused
-	switch type
+	switch depth
 		case 0 % OpenCV type for uint8_t
-			mat = fread(fileID, [cols rows], 'uint8=>uint8')';
+			mat = fread(fileID, [cols rows*channels], 'uint8=>uint8')';
 		case 2 % OpenCV type for uint16_t
-			mat = fread(fileID, [cols rows], 'uint16=>uint16')';
-		case 7 % OpenCV type for uint32_t
-			mat = fread(fileID, [cols rows], 'uint32=>uint32')';
+			mat = fread(fileID, [cols rows*channels], 'uint16=>uint16')';
+		case -1 % OpenCV type for uint32_t
+			mat = fread(fileID, [cols rows*channels], 'uint32=>uint32')';
+		case -1 % OpenCV type for uint64_t
+			mat = fread(fileID, [cols rows*channels], 'uint64=>uint64')';
 		case 1 % OpenCV type for int8_t
-			mat = fread(fileID, [cols rows], 'int8=>int8')';
+			mat = fread(fileID, [cols rows*channels], 'int8=>int8')';
 		case 3 % OpenCV type for int16_t
-			mat = fread(fileID, [cols rows], 'int16=>int16')';
+			mat = fread(fileID, [cols rows*channels], 'int16=>int16')';
 		case 4 % OpenCV type for int32_t
-			mat = fread(fileID, [cols rows], 'int32=>int32')';
+			mat = fread(fileID, [cols rows*channels], 'int32=>int32')';
+		case -1 % OpenCV type for int64_t
+			mat = fread(fileID, [cols rows*channels], 'int64=>int64')';
 		case 5 % OpenCV type for float
-			mat = fread(fileID, [cols rows], 'single=>single')';
+			mat = fread(fileID, [cols rows*channels], 'single=>single')';
 		case 6 % OpenCV type for double
-			mat = fread(fileID, [cols rows], 'double=>double')';
+			mat = fread(fileID, [cols rows*channels], 'double=>double')';
+	end
+	if channels > 1
+		A = reshape(mat', [channels cols*rows]);
+		B = reshape(A', [cols, rows, channels]);
+		mat = permute(B, [2,1,3]);
 	end
 end

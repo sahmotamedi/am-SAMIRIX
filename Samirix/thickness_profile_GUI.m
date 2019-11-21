@@ -86,15 +86,20 @@ if ~isempty(hSamirixGui) % If exists
     samirixGuiData = guidata(hSamirixGui);
     % Get the vol files dir and names from the Samirix GUI
     volFilesList = samirixGuiData.listbox1.String;
-    volFilePath = samirixGuiData.text4.String;
-    volFilesFullPath = strcat(volFilePath, '\', volFilesList);
+    volFilePath = samirixGuiData.edit3.String;
+    volFilesFullPath = strcat(volFilePath, '/', volFilesList);
     
     % Get the upper and lower boudaries
     upperBoundary = handles.uibuttongroup1.SelectedObject.String;
     lowerBoundary = handles.uibuttongroup2.SelectedObject.String;
     
     % Determine the thickness profile grid type 
-    if strcmpi(handles.popupmenu1.String{handles.popupmenu1.Value}, '1, 2.22, 3.45 mm')
+    if strcmpi(handles.popupmenu1.String{handles.popupmenu1.Value}, '1-to-5 mm Doughnut with Centering')
+        thicknessProfileGridType = 5;
+%     Cirrus Annulus has been commented out because the calculations need to be revised and tested. If this is to be added again, add "Cirrus Annulus" to the String properties of the GUI    
+%     elseif strcmpi(handles.popupmenu1.String{handles.popupmenu1.Value}, 'cirrus annulus')
+%         thicknessProfileGridType = 4.8;
+    elseif strcmpi(handles.popupmenu1.String{handles.popupmenu1.Value}, '1, 2.22, 3.45 mm')
         thicknessProfileGridType = 3.45;
     elseif strcmpi(handles.popupmenu1.String{handles.popupmenu1.Value}, '1, 2, 3 mm')
         thicknessProfileGridType = 3;
@@ -103,14 +108,18 @@ if ~isempty(hSamirixGui) % If exists
     end
     
     % Form the predefined report saving path based on what selected
-    preDefinesSavingPath = [volFilePath, '\thickness_report_', upperBoundary, '_', lowerBoundary, '_', strrep(num2str(thicknessProfileGridType), '.', '_'), '_mm', '.csv'];
+    preDefinesSavingPath = [volFilePath, '/thickness_report_', upperBoundary, '_', lowerBoundary, '_', strrep(num2str(thicknessProfileGridType), '.', '_'), '_mm', '.csv'];
     
     % Ask the user where to save the thickness profile
     [fileName, pathName] = uiputfile('*.csv', 'Save as', preDefinesSavingPath);
     thicknessReportSavingPath = [pathName, fileName];
     
     % Generate the thickness report
-    generate_thickness_report_batch(volFilesFullPath, upperBoundary, lowerBoundary, thicknessProfileGridType, thicknessReportSavingPath);
+    if thicknessProfileGridType == 5
+        generate_thickness_report_batch_1_to_5_octbi_vol(volFilesFullPath, upperBoundary, lowerBoundary, thicknessReportSavingPath);
+    else
+        generate_thickness_report_batch(volFilesFullPath, upperBoundary, lowerBoundary, thicknessProfileGridType, thicknessReportSavingPath);
+    end
 end
 
 % ------------- Help Button

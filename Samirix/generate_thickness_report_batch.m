@@ -24,7 +24,7 @@ function generate_thickness_report_batch(volFilesPathList, upperBoundary, lowerB
 % Open the report saving file
 fileID = fopen(reportSavingPath, 'w');
 
-% Write the header 
+% Write the header
 fprintf(fileID, 'Lastname,Firstname,DOB,PatientID,Eye,ImageID,ExamDate,ExamTime,Quality,ARTMean,ImageType,Upper Layer,Lower Layer,GridType,TotalVolume [mm³],Mean C0 [µm],Mean N1 [µm],Mean N2 [µm],Mean S1 [µm],Mean S2 [µm],Mean T1 [µm],Mean T2 [µm],Mean I1 [µm],Mean I2 [µm],Center [µm],Central Min [µm],Central Max [µm]\n');
 
 % Creat a wait bar
@@ -32,75 +32,191 @@ handleWaitBar = waitbar(0, 'Exporting thickness profiles! Please wait...');
 
 % Form the thickness table and then write it in the report file volume by volume
 for iVolume = 1:length(volFilesPathList)
-    % Read the vol file
-    [header, bScanHeader, ~, bScans, thicknessGrid] = open_vol(volFilesPathList{iVolume});
-    
-    % Define the thickness profile report table
-    thicknessProfileReportTable = table;
-    
-    % Form the thickness profile report table
-    thicknessProfileReportTable.LastName{1} = deblank(header.PatientID);
-    thicknessProfileReportTable.FirstName{1} = deblank(header.PatientID);
-    thicknessProfileReportTable.DOB = datestr(datenum(header.DOB), 'dd.mm.yyyy');
-    thicknessProfileReportTable.PatientID{1} = deblank(header.PatientID);
-    thicknessProfileReportTable.Eye = latin2englishEyePos(deblank(header.ScanPosition));
-    thicknessProfileReportTable.ImageID = deblank(header.ID);
-    thicknessProfileReportTable.ExamDate = datestr(datenum(header.ExamTime(1:11)), 'dd.mm.yyyy');
-    thicknessProfileReportTable.ExamTime = [datestr(datenum(header.ExamTime)+2/24, 'HH:MM:SS'), ' (UTC+1)'];  % The exam time is always saved two hours less than the Berlin time (UTC+1)!!
-    thicknessProfileReportTable.Quality = round(mean(bScanHeader.Quality));
-    thicknessProfileReportTable.ARTMean = {''}; % There is no ART mean information in vol files
-    thicknessProfileReportTable.ImageType = {'OCT Volume Scan'};
-    
-    % Check if the upper boundary and lower boundary have been segmented
-    iUpperBoundary = findBoundary(upperBoundary, header, bScanHeader);
-    iLowerBoundary = findBoundary(lowerBoundary, header, bScanHeader);
-    if ~isempty(iUpperBoundary) && ~isempty(iLowerBoundary) % if so, calculate the thickness profile and add it to the table
-        try 
+    try
+    if contains(volFilesPathList{iVolume}, '.vol') % if it is a spectralis vol file 
+        % Read the vol file
+        [header, bScanHeader, ~, bScans, thicknessGrid] = open_vol(volFilesPathList{iVolume});
+        
+        % Define the thickness profile report table
+        thicknessProfileReportTable = table;
+        
+        % Split the volfile path so we can use the vol file name later
+        [~, volFileName, ~] = fileparts(volFilesPathList{iVolume});
+        
+        % Form the thickness profile report table
+        thicknessProfileReportTable.LastName{1} = volFilesPathList{iVolume};      % here the volfile name is given to the last name in case that the vol file is fully anonymized, in which there is no eye id as well
+        thicknessProfileReportTable.FirstName{1} = deblank(header.PatientID);
+        thicknessProfileReportTable.DOB = datestr(datenum(header.DOB), 'dd.mm.yyyy');
+        thicknessProfileReportTable.PatientID{1} = deblank(header.PatientID);
+        thicknessProfileReportTable.Eye = latin2englishEyePos(deblank(header.ScanPosition));
+        thicknessProfileReportTable.ImageID = deblank(header.ID);
+        thicknessProfileReportTable.ExamDate = datestr(datenum(header.ExamTime(1:11)), 'dd.mm.yyyy');
+        thicknessProfileReportTable.ExamTime = [datestr(datenum(header.ExamTime)+2/24, 'HH:MM:SS'), ' (UTC+1)'];  % The exam time is always saved two hours less than the Berlin time (UTC+1)!!
+        thicknessProfileReportTable.Quality = round(mean(bScanHeader.Quality));
+        thicknessProfileReportTable.ARTMean = {''}; % There is no ART mean information in vol files
+        thicknessProfileReportTable.ImageType = {'OCT Volume Scan'};
+        
+        % Check if the upper boundary and lower boundary have been segmented
+        iUpperBoundary = findBoundary(upperBoundary, header, bScanHeader);
+        iLowerBoundary = findBoundary(lowerBoundary, header, bScanHeader);
+        if ~isempty(iUpperBoundary) && ~isempty(iLowerBoundary) % if so, calculate the thickness profile and add it to the table
             % Calculate the thickness profile between the given boundaries
             thicknessProfile = calculate_thickness_profile(header, bScanHeader, bScans, thicknessGrid, iUpperBoundary, iLowerBoundary, thicknessProfileGridType);
-        catch
-            % Write only the eye information if an error happened in
-            % thickness calculation and go on 
+            
+            % Continue to fill the report table with thickness profile information
+            thicknessProfileReportTable.UpperLayer = upperBoundary;
+            thicknessProfileReportTable.LowerLayer = lowerBoundary;
+            if thicknessProfile.Diameter(3) == 6; thicknessProfileReportTable.GridType = '1 3 6 mm ETDRS'; else; thicknessProfileReportTable.GridType = [num2str(thicknessProfile.Diameter(1)), ' ', num2str(thicknessProfile.Diameter(2)), ' ', num2str(thicknessProfile.Diameter(3)), ' mm']; end
+            thicknessProfileReportTable.TotalVolume = round(thicknessProfile.TotalVolume, 3);
+            thicknessProfileReportTable.MeanC0 = round(thicknessProfile.Sectors(1).Thickness * 1000);
+            if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanN1 = round(thicknessProfile.Sectors(2).Thickness * 1000); else; thicknessProfileReportTable.MeanN1 = round(thicknessProfile.Sectors(6).Thickness * 1000); end
+            if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanN2 = round(thicknessProfile.Sectors(3).Thickness * 1000); else; thicknessProfileReportTable.MeanN2 = round(thicknessProfile.Sectors(7).Thickness * 1000); end
+            thicknessProfileReportTable.MeanS1 = round(thicknessProfile.Sectors(4).Thickness * 1000);
+            thicknessProfileReportTable.MeanS2 = round(thicknessProfile.Sectors(5).Thickness * 1000);
+            if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanT1 = round(thicknessProfile.Sectors(6).Thickness * 1000); else; thicknessProfileReportTable.MeanT1 = round(thicknessProfile.Sectors(2).Thickness * 1000); end
+            if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanT2 = round(thicknessProfile.Sectors(7).Thickness * 1000); else; thicknessProfileReportTable.MeanT2 = round(thicknessProfile.Sectors(3).Thickness * 1000); end
+            thicknessProfileReportTable.MeanI1 = round(thicknessProfile.Sectors(8).Thickness * 1000);
+            thicknessProfileReportTable.MeanI2 = round(thicknessProfile.Sectors(9).Thickness * 1000);
+            thicknessProfileReportTable.Center = round(thicknessProfile.CentralThk * 1000);
+            thicknessProfileReportTable.CenteralMin = round(thicknessProfile.MinCentralThk * 1000);
+            thicknessProfileReportTable.CenteralMax = round(thicknessProfile.MaxCentralThk * 1000);
+            
+            % Convert the table to a cell and then write it in the report file
+            thicknessProfileReportCell = table2cell(thicknessProfileReportTable);
+            fprintf(fileID, '%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%s,%s,%s,%s,%.3f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n', thicknessProfileReportCell{:});
+            
+            
+        else % if boundaries are not segmented, write the table in the report file and complete the thickness related parameters with blank
             thicknessProfileReportCell = table2cell(thicknessProfileReportTable);
             fprintf(fileID, '%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%s,,,,,,,,,,,,,,,,\n', thicknessProfileReportCell{:});
-            continue
         end
         
-        % Continue to fill the report table with thickness profile information 
-        thicknessProfileReportTable.UpperLayer = upperBoundary;
-        thicknessProfileReportTable.LowerLayer = lowerBoundary;
-        if thicknessProfile.Diameter(3) == 6; thicknessProfileReportTable.GridType = '1 3 6 mm ETDRS'; else; thicknessProfileReportTable.GridType = [num2str(thicknessProfile.Diameter(1)), ' ', num2str(thicknessProfile.Diameter(2)), ' ', num2str(thicknessProfile.Diameter(3)), ' mm']; end
-        thicknessProfileReportTable.TotalVolume = round(thicknessProfile.TotalVolume, 2);
-        thicknessProfileReportTable.MeanC0 = round(thicknessProfile.Sectors(1).Thickness * 1000);
-        if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanN1 = round(thicknessProfile.Sectors(2).Thickness * 1000); else; thicknessProfileReportTable.MeanN1 = round(thicknessProfile.Sectors(6).Thickness * 1000); end
-        if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanN2 = round(thicknessProfile.Sectors(3).Thickness * 1000); else; thicknessProfileReportTable.MeanN2 = round(thicknessProfile.Sectors(7).Thickness * 1000); end
-        thicknessProfileReportTable.MeanS1 = round(thicknessProfile.Sectors(4).Thickness * 1000);
-        thicknessProfileReportTable.MeanS2 = round(thicknessProfile.Sectors(5).Thickness * 1000);
-        if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanT1 = round(thicknessProfile.Sectors(6).Thickness * 1000); else; thicknessProfileReportTable.MeanT1 = round(thicknessProfile.Sectors(2).Thickness * 1000); end
-        if strcmpi(deblank(header.ScanPosition), 'OD'); thicknessProfileReportTable.MeanT2 = round(thicknessProfile.Sectors(7).Thickness * 1000); else; thicknessProfileReportTable.MeanT2 = round(thicknessProfile.Sectors(3).Thickness * 1000); end
-        thicknessProfileReportTable.MeanI1 = round(thicknessProfile.Sectors(8).Thickness * 1000);
-        thicknessProfileReportTable.MeanI2 = round(thicknessProfile.Sectors(9).Thickness * 1000);
-        thicknessProfileReportTable.Center = round(thicknessProfile.CentralThk * 1000);
-        thicknessProfileReportTable.CenteralMin = round(thicknessProfile.MinCentralThk * 1000);
-        thicknessProfileReportTable.CenteralMax = round(thicknessProfile.MaxCentralThk * 1000);
+    elseif contains(volFilesPathList{iVolume}, '.octbin') || contains(volFilesPathList{iVolume}, '.fda')
+        if contains(volFilesPathList{iVolume}, '.fda')
+            % Convert the fda file to octbin, and move it to a new folder
+            % named after the fda file name (the converted octbin file does
+            % not have the name inside)
+            volFilePath = volFilesPathList{iVolume};
+            [volFileDir, volFileName, ~] = fileparts(volFilesPathList{iVolume});
+            volFileDirTemp = [volFileDir, '/', volFileName];
+            if ~isdir(volFileDirTemp)
+                mkdir(volFileDirTemp);
+            end
+            
+            % Covert the fda file to oct bin
+            octMarkerPathSearch = what('octmarker64');
+            octMarkerPath = octMarkerPathSearch.path;
+            system(['"', octMarkerPath, '/convert_oct_data.exe"  --outputPath="', volFileDirTemp, '/" -f octbin "', volFilePath, '"']);
+            
+            % Find the octbin file just created and chenge its name to the fda file
+            % name, change the path to it
+            fileListSruct = dir(fullfile(volFileDirTemp, '*.octbin'));
+            fileListCell = struct2cell(fileListSruct);
+            octbinFilesList = fileListCell(1, :);
+            if length(octbinFilesList) > 1 % if so, out of somewhere there is more than one octbin file in the folder, and we dont know which one is the correct, so throw an error
+                error(['There must be only one octbin file in this folder: ', volFileDirTemp]);
+            end
+            
+            % Open the octbin file
+            volOCTbin = readbin([volFileDirTemp, '/', octbinFilesList{1}]);
+            
+            % Delete the folder
+            rmdir(volFileDirTemp, 's');
+            
+            % Add _fda to volfilename 
+            volFileName = [volFileName, '_fda'];
+            
+        else
+            % Read the OCT bin
+            volOCTbin = readbin(volFilesPathList{iVolume});
+            
+            % Split the volfile path so we can use the vol file name later
+            [~, volFileName, ~] = fileparts(volFilesPathList{iVolume});
+            
+        end
         
-        % Convert the table to a cell and then write it in the report file 
-        thicknessProfileReportCell = table2cell(thicknessProfileReportTable);
-        fprintf(fileID, '%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%s,%s,%s,%s,%.3f,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n', thicknessProfileReportCell{:});
-
+        % Define the thickness profile report table
+        thicknessProfileReportTable = table;
         
-    else % if boundaries are not segmented, write the table in the report file and complete the thickness related parameters with blank
-        thicknessProfileReportCell = table2cell(thicknessProfileReportTable);
-        fprintf(fileID, '%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%s,,,,,,,,,,,,,,,,\n', thicknessProfileReportCell{:});
+        % Form the thickness profile report table (for OCTbin we only report volfilename, image type, and laterality)
+        thicknessProfileReportTable.LastName{1} = volFileName;      % here the volfile name is given to the last name in case that the vol file is fully anonymized, in which there is no eye id as well
+        
+        % Determine the laterality, exam date and time and the image type
+        if contains(volFileName, '_fda')
+            thicknessProfileReportTable.Eye = latin2englishEyePos(deblank(volOCTbin.seriesData.laterality));
+            thicknessProfileReportTable.ExamDate = datestr(datenum(volOCTbin.seriesData.scanDate(1:10), 'YYYY.MM.DD'), 'DD.MM.YYYY');
+            thicknessProfileReportTable.ExamTime = volOCTbin.seriesData.scanDate(12:end);
+            thicknessProfileReportTable.ImageType = {'fda OCT Bin'};
+        elseif contains(volFileName, '_img')
+            splittedVolFileName = strsplit(volFileName, '_');
+            thicknessProfileReportTable.Eye = latin2englishEyePos(deblank(splittedVolFileName{5}));
+            thicknessProfileReportTable.ExamDate = datestr(datenum(splittedVolFileName{3}, 'MM-DD-YYYY'), 'DD.MM.YYYY');
+            thicknessProfileReportTable.ExamTime = datestr(datenum(splittedVolFileName{4}, 'HH-MM-SS'), 'HH:MM:SS');
+            thicknessProfileReportTable.ImageType = {'img OCT Bin'};
+        else  % If the image type is not known try to find them either in the name or in the octbin data structure, if nothing found give 
+            if isfield(volOCTbin.seriesData, 'laterality') % It is assumed that if the laterality field exists then the rest of the fileds needed are also exist, otherwise this leads to errors
+                thicknessProfileReportTable.Eye = latin2englishEyePos(deblank(volOCTbin.seriesData.laterality));
+                thicknessProfileReportTable.ExamDate = datestr(datenum(volOCTbin.seriesData.scanDate(1:10), 'YYYY.MM.DD'), 'DD.MM.YYYY');
+                thicknessProfileReportTable.ExamTime = volOCTbin.seriesData.scanDate(12:end);
+            elseif contains(volFileName, 'OD', 'IgnoreCase', true) || contains(volFileName, 'OS', 'IgnoreCase', true) % if it has OD and OS in the name, it is assumed that it has other information in the name, if not this causes errors 
+                splittedVolFileName = strsplit(volFileName, '_');
+                thicknessProfileReportTable.Eye = latin2englishEyePos(deblank(splittedVolFileName{5}));
+                thicknessProfileReportTable.ExamDate = datestr(datenum(splittedVolFileName{3}, 'MM-DD-YYYY'), 'DD.MM.YYYY');
+                thicknessProfileReportTable.ExamTime = datestr(datenum(splittedVolFileName{4}, 'HH-MM-SS'), 'HH:MM:SS');
+            else
+                thicknessProfileReportTable.Eye = 'NA';
+                thicknessProfileReportTable.ExamDate = 'NA';
+                thicknessProfileReportTable.ExamTime = 'NA';
+            end
+            thicknessProfileReportTable.ImageType = {'OCT Bin'};
+        end
+        
+        % Check if the upper and lower boundaries have been segmented
+        isSegmentationCompleteFlag = 1;
+        for iBscan = 1:length(volOCTbin.serie)
+            if ~isfield(volOCTbin.serie{1, iBscan}.segmentations, upperBoundary) || ~isfield(volOCTbin.serie{1, iBscan}.segmentations, lowerBoundary)
+                isSegmentationCompleteFlag = 0;
+            else
+                if ~isempty(find(isnan(volOCTbin.serie{1, iBscan}.segmentations.(upperBoundary)), 1)) || ~isempty(find(isnan(volOCTbin.serie{1, iBscan}.segmentations.(lowerBoundary)), 1))
+                    isSegmentationCompleteFlag = 0;
+                end
+            end
+        end
+        
+        % Extract the thickness if the upper and lower boundaries segmented
+        if isSegmentationCompleteFlag == 1
+            thicknessProfileReportTable.UpperLayer = upperBoundary;
+            thicknessProfileReportTable.LowerLayer = lowerBoundary;
+%             if thicknessProfileGridType == 4.8     % Although Cirrus Annulus was taken out of the GUI, still it is a good practice to comment it out from everywhere 
+%                 thicknessProfileReportTable.GridType{1} = 'Cirrus Annulus (2.4-2, 1.2-1 mm)';
+%             else
+                thicknessProfileReportTable.GridType{1} = [num2str(thicknessProfileGridType), ' mm'];
+%             end
+            thicknessProfileReportTable.TotalVolume = round(calculate_thickness_profile_octbin(volOCTbin, upperBoundary, lowerBoundary, thicknessProfileGridType, thicknessProfileReportTable.ImageType{1}), 3);
+            thicknessProfileReportCell = table2cell(thicknessProfileReportTable);
+            fprintf(fileID, '%s,,,,%s,,%s,%s,,,%s,%s,%s,%s,%.3f,,,,,,,,,,,,\n', thicknessProfileReportCell{:});
+        else % if boundaries are not segmented, write the table in the report file and complete the thickness related parameters with blank
+            thicknessProfileReportCell = table2cell(thicknessProfileReportTable);
+            fprintf(fileID, '%s,,,,%s,,%s,%s,,,%s,,,,,,,,,,,,,,,,\n', thicknessProfileReportCell{:});
+        end
+        
     end
+    
     % Update the wait bar
     waitbar(iVolume/length(volFilesPathList));
+
+    catch
+        % Write only the volume name if an error happened in thickness
+        % calculation and go on
+        fprintf(fileID, '%s,,,,,,,,,,,,,,,,,,,,,,,,,,\n', volFilesPathList{iVolume});
+        continue
+    end
 end
 
 % Close the wait bar
 close(handleWaitBar);
 
-% Close the file 
+% Close the file
 fclose(fileID);
 end
 

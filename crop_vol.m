@@ -95,6 +95,61 @@ try
     foveaBScanAuto = pos1 + startBScans2mm - 1;
     foveaAScanAuto = pos2 + marginLeftBScans2mm - 1;
     
+    % Take out the 1mm square around the automatic center
+    distBScans1mm = round(0.5/header.Distance);
+    distAScans1mm = round(0.5/header.ScaleX);
+    onemmSquareAroundCenter = ILMrelFull((foveaBScanAuto-distBScans1mm):(foveaBScanAuto+distBScans1mm), (foveaAScanAuto-distAScans1mm):(foveaAScanAuto+distAScans1mm));
+    
+    % Form the meshgrid for the surface fitting (the automatically found center
+    % has the coordiante of [0,0]
+    [AScanGrid,BScanGrid] = meshgrid((-distAScans1mm):(distAScans1mm), (-distBScans1mm):(distBScans1mm));
+    BScanGrid = BScanGrid * header.Distance;
+    AScanGrid = AScanGrid * header.ScaleX;
+    
+    % Fit the surface
+    fittedSurface = fit([reshape(BScanGrid, [], 1),reshape(AScanGrid, [], 1)], reshape(onemmSquareAroundCenter, [], 1), 'poly44');
+    
+%     % Plot the surface togehter with the original data
+%     figure
+%     plot(fittedSurface, [reshape(BScanGrid, [], 1),reshape(AScanGrid, [], 1)], reshape(onemmSquareAroundCenter, [], 1))
+    
+%     % Determine the number of BScans to be added artificially (if less than 150
+%     % micron, no additional BScans, 150 to 300 micron one additional BScan
+%     % between each two adjacent BScans, 300 to 600, 3 BScans, 600 to 1200 7
+%     % BScans and so on)
+%     virtualBScans = 0;
+%     bScanDistance = header.Distance;
+%     while bScanDistance > 0.15
+%         virtualBScans = virtualBScans*2+1;
+%         bScanDistance = bScanDistance/2;
+%     end
+
+    % Determine the number of BScans to virtually added which for now
+    % (after some tests) is always 1
+    virtualBScans = 1;    
+    
+    % Form the sampling grid  (in AScan direction sampling twice as high would
+    % be more than enough, but in BScan direction 10 samples in between of 2
+    % adjacent BScans (no matter virtual or what) is set)
+    [reSamplingAScanGrid,reSamplingBScanGrid] = meshgrid((-distAScans1mm)*2:(distAScans1mm)*2, (-distBScans1mm*(virtualBScans+1)*11):(distBScans1mm*(virtualBScans+1)*11));
+    reSamplingAScanGrid = reSamplingAScanGrid * header.ScaleX/2;
+    reSamplingBScanGrid = reSamplingBScanGrid * header.Distance/((virtualBScans+1)*11);
+    
+    % Find the minimum point of the fitted surface and find the min point
+    % displacement from the center found above
+    [fitMinPointBScan, fitMinPointAScan] = ind2sub(size(fittedSurface(reSamplingBScanGrid, reSamplingAScanGrid)), find(fittedSurface(reSamplingBScanGrid, reSamplingAScanGrid) == min(min(fittedSurface(reSamplingBScanGrid, reSamplingAScanGrid))), 1));
+    centerDisplacementBScanDirMm = reSamplingBScanGrid(fitMinPointBScan, 1);
+    centerDisplacementAScanDirMm = reSamplingAScanGrid(1, fitMinPointAScan);
+    
+    % Shift the automatic center according to the displacement. Only half and
+    % complete AScan/BScan shift is allowed, so we are going zo round
+%     oldBScanAuto = foveaBScanAuto;
+    foveaBScanAuto = foveaBScanAuto + round((virtualBScans+1)*(centerDisplacementBScanDirMm/header.Distance))/(virtualBScans+1);
+    foveaAScanAuto = foveaAScanAuto + round(centerDisplacementAScanDirMm/header.ScaleX);
+%     if oldBScanAuto ~= foveaBScanAuto
+%         volumeFilesPath{iVolume}
+%     end
+    
     % Convert the automatically found fovea point into the distance in mm
     % from the left top corner of the slo
     volumeFoveaAutoYmm = (header.NumBScans - foveaBScanAuto) * header.Distance;
@@ -109,16 +164,16 @@ try
     % @note The sequence of cropping (segmentation data, BScans, ...) in
     % this section is important 
     
+    % Define the first and last BScans and AScans for cropping
+    croppingFirstBScan = ceil(foveaBScanAuto-(squareWidthmm/header.Distance/2));
+    croppingLastBScan = floor(foveaBScanAuto+(squareWidthmm/header.Distance/2));
+    croppingFirstAScan = ceil(foveaAScanAuto-(squareWidthmm/header.ScaleX/2));
+    croppingLastAScan = floor(foveaAScanAuto+(squareWidthmm/header.ScaleX/2));
+    
     % Calcualte the number of BScans and AScans around the center point for
     % cropping
-    nCroppedVolBScans = 2*floor(squareWidthmm/header.Distance/2)+1;
-    nCroppedVolAScans = 2*floor(squareWidthmm/header.ScaleX/2)+1;
-    
-    % Define the first and last BScans and AScans for cropping
-    croppingFirstBScan = foveaBScanAuto-(nCroppedVolBScans-1)/2;
-    croppingLastBScan = foveaBScanAuto+(nCroppedVolBScans-1)/2;
-    croppingFirstAScan = foveaAScanAuto-(nCroppedVolAScans-1)/2;
-    croppingLastAScan = foveaAScanAuto+(nCroppedVolAScans-1)/2;
+    nCroppedVolBScans = croppingLastBScan-croppingFirstBScan+1;
+    nCroppedVolAScans = croppingLastAScan-croppingFirstAScan+1;
     
     % If the volume is smaller than the cropping size, throw a warning
     % message and change variables in order to crop the volume from the
@@ -202,13 +257,13 @@ try
         if ~isdir(varargin{3})
             mkdir(varargin{3})
         end
-        croppedVolPath = [varargin{3}, '\', inputVolName, '_cropped', inputVolExt];
+        croppedVolPath = [varargin{3}, '/', inputVolName, '_cropped', inputVolExt];
         write_vol(header, bScanHeader, sloImage, bScans, thicknessGrid, croppedVolPath);
     else
-        if ~isdir([inputVolDir, '\cropped'])
-            mkdir([inputVolDir, '\cropped']);
+        if ~isdir([inputVolDir, '/cropped'])
+            mkdir([inputVolDir, '/cropped']);
         end
-        croppedVolPath = [inputVolDir, '\cropped\', inputVolName, '_cropped', inputVolExt];
+        croppedVolPath = [inputVolDir, '/cropped/', inputVolName, '_cropped', inputVolExt];
         write_vol(header, bScanHeader, sloImage, bScans, thicknessGrid, croppedVolPath);
     end
 
